@@ -2,95 +2,92 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>GPS Sensor Check</title>
-    <script src="https://aframe.io/releases/1.0.4/aframe.min.js"></script>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Location-based AR Final Fix</title>
+    
+    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+    <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+
     <style>
-        #debug-console {
+        #debug {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            color: lime; /* ハッカーっぽい緑色 */
+            z-index: 10000;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: yellow;
+            font-size: 20px;
+            padding: 15px;
+            top: 10px;
+            left: 10px;
+            width: 90%;
+            border: 2px solid white;
             font-family: monospace;
-            font-size: 16px;
-            padding: 20px;
-            z-index: 99999;
-            pointer-events: none; /* 下の操作を邪魔しない */
-            overflow-y: scroll;
         }
     </style>
 </head>
+
 <body style="margin: 0; overflow: hidden;">
-    <div id="debug-console">
-        === GPS Sensor Check ===<br>
-        初期化中...<br>
+    <div id="debug">
+        システム起動中...<br>
+        (赤い箱を探してください)
     </div>
 
     <a-scene
         vr-mode-ui="enabled: false"
         embedded
         arjs="sourceType: webcam; debugUIEnabled: false;"
+        renderer="logarithmicDepthBuffer: true;" 
     >
-        <a-camera id="camera" gps-camera rotation-reader></a-camera>
+        <a-box
+            id="target-box"
+            material="color: red"
+            gps-entity-place="latitude: 35.701820413676195; longitude: 139.8251889595972;"
+            scale="30 30 30"
+            look-at="[gps-camera]"
+        ></a-box>
+
+        <a-camera gps-camera="minDistance: 0; maxDistance: 2000;" rotation-reader></a-camera>
     </a-scene>
 
     <script>
-        const consoleDiv = document.getElementById('debug-console');
-        function log(text) {
-            consoleDiv.innerHTML += text + "<br>";
-            consoleDiv.scrollTop = consoleDiv.scrollHeight; // 自動スクロール
-        }
-
         window.addEventListener('load', () => {
-            log("ページ読み込み完了");
-            
-            // GPS取得APIが使えるかチェック
-            if ("geolocation" in navigator) {
-                log("Geolocation API: OK (機能あり)");
-            } else {
-                log("Geolocation API: NG (このブラウザは非対応)");
-                return;
+            const debugDiv = document.getElementById('debug');
+            const target = document.getElementById('target-box');
+
+            // 1. GPSが動いているか（スマホ側）
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition((pos) => {
+                    // ここが動けば「GPS許可」はOK
+                    // debugDiv.innerHTML = `GPS信号受信中...<br>精度: ${Math.round(pos.coords.accuracy)}m`;
+                }, (err) => {
+                    debugDiv.innerHTML = `<span style="color:red">GPSエラー: ${err.message}</span>`;
+                });
             }
 
-            const camera = document.getElementById('camera');
-
-            // 1. AR.jsのイベント経由でGPSを取得してみる
-            camera.addEventListener('gps-camera-update-position', (e) => {
-                log(`[AR.js] 座標受信成功!<br>緯度: ${e.detail.position.latitude.toFixed(5)}<br>経度: ${e.detail.position.longitude.toFixed(5)}`);
-                // 成功したら画面の色を変えるなど視覚的にわかるようにしてもいい
-                consoleDiv.style.color = "cyan";
+            // 2. ARエンジンが距離を計算できたか
+            target.addEventListener('gps-entity-place-update-positon', (event) => {
+                // 注: 最新版AR.jsでもイベント名のスペルミス(positon)が残っている場合があるため両方対応
+                updateDistance(event.detail.distance);
+            });
+            // 正しいスペルの方も念のため記述
+            target.addEventListener('gps-entity-place-update-position', (event) => {
+                updateDistance(event.detail.distance);
             });
 
-            // 2. ブラウザ標準の機能でGPSを直接取得してみる（AR.jsがダメな場合の保険）
-            navigator.geolocation.watchPosition(
-                (position) => {
-                    log(`[Native] 生GPS受信中...<br>精度: 半径${Math.round(position.coords.accuracy)}m`);
-                },
-                (error) => {
-                    // ここが一番重要：エラーの原因を表示
-                    switch(error.code) {
-                        case error.PERMISSION_DENIED:
-                            log("<span style='color:red;'>エラー: 位置情報の利用が拒否されました。<br>設定で許可してください。</span>");
-                            break;
-                        case error.POSITION_UNAVAILABLE:
-                            log("<span style='color:red;'>エラー: 位置情報が取得できません（電波状況など）。</span>");
-                            break;
-                        case error.TIMEOUT:
-                            log("<span style='color:red;'>エラー: タイムアウトしました。</span>");
-                            break;
-                        default:
-                            log(`<span style='color:red;'>不明なエラー: ${error.message}</span>`);
-                    }
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 20000,
-                    maximumAge: 0
+            function updateDistance(distance) {
+                const distInt = Math.round(distance);
+                debugDiv.innerHTML = `
+                    <span style="color:cyan">★ARエンジン接続成功★</span><br>
+                    ターゲットまでの距離: <span style="font-size:30px">${distInt}m</span><br>
+                    (30mの巨大な赤い箱があります)
+                `;
+                
+                // 距離に応じて色を変える（50m以内なら青）
+                if(distInt < 50) {
+                    target.setAttribute('material', 'color: blue');
+                    debugDiv.innerHTML += "<br><span style='color:lime'>近いです！見回してください！</span>";
                 }
-            );
+            }
         });
     </script>
 </body>
