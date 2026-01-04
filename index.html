@@ -4,14 +4,14 @@
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Street AR (1 Box Test)</title>
+    <title>Spawn at Location</title>
 
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
 
     <style>
-        /* 距離を表示するパネル */
+        /* 距離表示パネル */
         #info-panel {
             position: fixed;
             top: 0;
@@ -21,18 +21,31 @@
             color: white;
             font-family: sans-serif;
             font-weight: bold;
-            padding: 15px;
+            padding: 10px;
             z-index: 9999;
-            box-sizing: border-box;
-            border-bottom: 2px solid cyan;
+            text-align: center;
         }
-        .main-text {
-            font-size: 20px;
-            color: cyan;
+        
+        /* 「ここに置く」ボタン */
+        #spawn-btn {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            padding: 15px;
+            background-color: #ff0055;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            border: none;
+            border-radius: 30px;
+            z-index: 9999;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
-        .sub-text {
-            font-size: 12px;
-            color: #ccc;
+        #spawn-btn:active {
+            background-color: #cc0044;
+            transform: translateX(-50%) translateY(2px);
         }
     </style>
 </head>
@@ -40,9 +53,11 @@
 <body style="margin: 0; overflow: hidden;">
 
     <div id="info-panel">
-        <div class="main-text" id="distance-display">GPS取得中...</div>
-        <div class="sub-text">ターゲット(1個)までの距離</div>
+        <span id="distance-display" style="font-size: 20px; color: cyan;">GPS取得中...</span><br>
+        <span style="font-size: 12px; color: #ccc;">ボタンを押すと足元に箱が出ます</span>
     </div>
+
+    <button id="spawn-btn">ここに箱を置く！</button>
 
     <a-scene
         vr-mode-ui="enabled: false"
@@ -52,28 +67,49 @@
         <a-box
             id="target-box"
             material="color: red"
-            scale="30 30 30"
+            scale="10 10 10"
             look-at="[gps-camera]"
-            gps-entity-place="latitude: 35.701820413676195; longitude: 139.8251889595972;"
+            gps-entity-place="latitude: 0; longitude: 0;"
         ></a-box>
 
-        <a-camera gps-camera="minDistance: 0; maxDistance: 3000;" rotation-reader></a-camera>
+        <a-camera gps-camera="minDistance: 0; maxDistance: 5000;" rotation-reader></a-camera>
     </a-scene>
 
     <script>
         window.addEventListener('load', () => {
             const display = document.getElementById('distance-display');
             const box = document.getElementById('target-box');
+            const btn = document.getElementById('spawn-btn');
 
-            // 距離が更新されたら表示を変える
+            // ★ボタンを押した時の処理
+            btn.addEventListener('click', () => {
+                btn.textContent = "設置中...";
+                
+                // 現在の座標を取得
+                navigator.geolocation.getCurrentPosition((position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+
+                    // 箱の座標を「今ここ」に書き換える
+                    box.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon};`);
+                    
+                    btn.textContent = "設置完了！";
+                    btn.style.backgroundColor = "blue";
+                    
+                    alert(`今の位置に箱を置きました！\n緯度:${lat.toFixed(5)}\n経度:${lon.toFixed(5)}`);
+                }, (err) => {
+                    alert("位置情報が取れませんでした");
+                });
+            });
+
+            // 距離表示の更新
             box.addEventListener('gps-entity-place-update-position', (event) => {
                 const distInt = Math.round(event.detail.distance);
                 display.innerHTML = `あと ${distInt}m`;
 
-                // 50m以内に近づいたら赤くする
-                if(distInt < 50) {
+                if(distInt < 20) {
                     display.style.color = "red";
-                    display.innerHTML = `あと ${distInt}m <br>★すぐ近くです！`;
+                    display.innerHTML = `あと ${distInt}m <br>★目の前です！`;
                 } else {
                     display.style.color = "cyan";
                 }
