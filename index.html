@@ -4,69 +4,107 @@
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Spawn at Location (Fixed)</title>
+    <title>AR Navigation Full</title>
 
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
 
     <style>
+        /* 全体のフォント設定 */
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        /* 画面上部の距離表示パネル */
         #info-panel {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.6);
             color: white;
-            font-family: sans-serif;
             font-weight: bold;
-            padding: 10px;
+            padding: 10px 0;
             z-index: 9999;
             text-align: center;
         }
+
+        /* 「ここに置く」ボタン */
         #spawn-btn {
             position: fixed;
             bottom: 30px;
             left: 50%;
             transform: translateX(-50%);
-            width: 200px;
+            width: 220px;
             padding: 15px;
             background-color: #ff0055;
             color: white;
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
             border: none;
             border-radius: 30px;
             z-index: 9999;
             box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            transition: all 0.2s;
         }
         #spawn-btn:active {
             background-color: #cc0044;
             transform: translateX(-50%) translateY(2px);
         }
+
+        /* 方向指示矢印のエリア */
+        #guide-ui {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%); /* 画面ど真ん中 */
+            width: 100%;
+            text-align: center;
+            pointer-events: none; /* ボタン操作を邪魔しない */
+            z-index: 9998;
+        }
+        
+        /* 矢印のデザイン */
+        .arrow {
+            font-size: 60px;
+            color: #ffff00; /* 黄色で見やすく */
+            text-shadow: 2px 2px 4px #000;
+            font-weight: 900;
+            animation: blink 1s infinite alternate;
+        }
+
+        @keyframes blink {
+            from { opacity: 0.6; transform: scale(1); }
+            to { opacity: 1.0; transform: scale(1.1); }
+        }
     </style>
 </head>
 
-<body style="margin: 0; overflow: hidden;">
+<body>
 
     <div id="info-panel">
-        <span id="distance-display" style="font-size: 20px; color: cyan;">GPS取得中...</span><br>
-        <span style="font-size: 12px; color: #ccc;">ボタンを押すと足元に箱が出ます</span>
+        <span id="distance-display" style="font-size: 20px; color: cyan;">GPS取得待ち...</span><br>
+        <span style="font-size: 12px; color: #ccc;">下のボタンで箱を設置してください</span>
     </div>
 
-    <button id="spawn-btn">ここに箱を置く！</button>
+    <div id="guide-ui"></div>
+
+    <button id="spawn-btn">現在地に箱を置く</button>
 
     <a-scene
         vr-mode-ui="enabled: false"
         embedded
-        arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true;"
-        renderer="logarithmicDepthBuffer: true;"
+        arjs="sourceType: webcam; debugUIEnabled: false;"
     >
         <a-box
             id="target-box"
-            material="color: red; side: double;"
-            scale="0.5 0.5 0.5"
-            position="0 0 0"
-            visible="false"
+            material="color: red; opacity: 0.8; transparent: true;"
+            scale="1 1 1"
+            look-at="[gps-camera]"
+            gps-entity-place="latitude: 0; longitude: 0;"
         ></a-box>
 
         <a-camera gps-camera="minDistance: 0; maxDistance: 5000;" rotation-reader></a-camera>
@@ -77,51 +115,85 @@
             const display = document.getElementById('distance-display');
             const box = document.getElementById('target-box');
             const btn = document.getElementById('spawn-btn');
+            const guideDiv = document.getElementById('guide-ui');
+            const camera = document.querySelector('a-camera');
 
+            // ■ ボタンを押した時の処理（設置）
             btn.addEventListener('click', () => {
-                btn.textContent = "座標取得中...";
+                btn.textContent = "設置中...";
                 
-                // highAccuracy: true を追加して精度を上げる
+                // 現在地を取得
                 navigator.geolocation.getCurrentPosition((position) => {
                     const lat = position.coords.latitude;
                     const lon = position.coords.longitude;
 
-                    // 1. 座標をセット
-                    box.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon};`);
-                    
-                    // 2. Y軸(高さ)をカメラの少し下に調整したい場合、position属性で調整可能
-                    // AR.jsの仕様上、gps-entity-placeがつくとpositionはオフセットとして扱われます
-                    box.setAttribute('position', '0 0 0'); 
-                    
-                    // 3. 表示をオンにする
-                    box.setAttribute('visible', 'true');
+                    // 【工夫】現在地そのままではなく「北に約2m」ずらす
+                    // 0.00002度 ≒ 約2.2m (日本付近)
+                    // これにより「自分と重なって見えない」を防ぎます
+                    const newLat = lat + 0.00002; 
 
-                    btn.textContent = "設置完了！";
-                    btn.style.backgroundColor = "blue";
+                    // 箱の座標更新
+                    box.setAttribute('gps-entity-place', `latitude: ${newLat}; longitude: ${lon};`);
                     
-                    alert(`設置しました！\n緯度:${lat.toFixed(5)}\n経度:${lon.toFixed(5)}\n\n※見えない場合は周囲を見回すか、数歩下がってください。`);
+                    btn.textContent = "再設置する";
+                    btn.style.backgroundColor = "#444";
+                    
+                    alert(`現在地から北に約2mの位置に箱を置きました。\n探してみてください！`);
                 }, (err) => {
-                    console.error(err);
-                    alert("位置情報が取れませんでした");
+                    alert("位置情報が取れませんでした。\n設定を確認してください。");
                 }, {
-                    enableHighAccuracy: true, // 高精度モード
-                    timeout: 5000,
-                    maximumAge: 0
+                    enableHighAccuracy: true // 高精度モード
                 });
             });
 
+            // ■ 距離イベントの処理（AR.jsの機能）
             box.addEventListener('gps-entity-place-update-position', (event) => {
                 const distInt = Math.round(event.detail.distance);
-                display.innerHTML = `あと ${distInt}m`;
                 
-                // 距離が近すぎる(5m以内)ときは赤文字
                 if(distInt < 5) {
+                    display.innerHTML = `距離: ${distInt}m <br><span style="color:red; font-size:24px;">★ここです！</span>`;
                     display.style.color = "red";
-                    display.innerHTML = `あと ${distInt}m <br>★足元にあります`;
                 } else {
+                    display.innerHTML = `あと ${distInt}m`;
                     display.style.color = "cyan";
                 }
             });
+
+            // ■ 方向アシスト機能（0.2秒ごとに計算）
+            setInterval(() => {
+                // カメラと箱の準備ができていなければ何もしない
+                if (!box || !camera) return;
+
+                const cameraObj = camera.object3D;
+                const boxObj = box.object3D;
+
+                // 箱の世界座標をコピー
+                const targetPos = boxObj.position.clone();
+                
+                // カメラから見た相対座標に変換
+                // (これで x:右左, z:前後 がわかります)
+                cameraObj.worldToLocal(targetPos);
+
+                let msg = "";
+
+                // 距離が近すぎる(5m以内)かつ、視界に入っているなら矢印を出さない
+                // targetPos.z < 0 は「前方」
+                if (targetPos.z < 0 && Math.abs(targetPos.x) < 2 && targetPos.z > -5) {
+                    msg = ""; // 目の前にあるので案内なし
+                } else {
+                    // 方向判定
+                    if (targetPos.z > 0) {
+                        msg = "<div class='arrow'>⬇ 後ろ！</div>";
+                    } else if (targetPos.x > 0) {
+                        msg = "<div class='arrow'>➡ 右</div>";
+                    } else {
+                        msg = "<div class='arrow'>⬅ 左</div>";
+                    }
+                }
+
+                guideDiv.innerHTML = msg;
+
+            }, 200); // 更新頻度
         });
     </script>
 </body>
