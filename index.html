@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Treasure Hunt AR</title>
+    <title>Treasure Hunt Precision</title>
 
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
@@ -26,7 +26,6 @@
             text-align: center;
         }
         
-        /* ターゲットの色を表示する丸印 */
         #target-indicator {
             display: inline-block;
             width: 20px;
@@ -37,7 +36,15 @@
             vertical-align: middle;
         }
 
-        /* 方向指示矢印 */
+        /* 距離の数字を少し大きく見やすく */
+        #distance-display {
+            font-size: 24px; 
+            color: cyan; 
+            font-family: monospace; /* 数字の幅を等幅にして読みやすく */
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
         #guide-ui {
             position: fixed;
             top: 50%;
@@ -66,11 +73,11 @@
 
     <div id="info-panel">
         <div style="font-size: 14px;">一番近いターゲット:</div>
-        <div style="font-size: 24px; font-weight: bold;">
+        <div style="font-size: 20px; font-weight: bold;">
             <span id="target-indicator" style="background-color: gray;"></span>
             <span id="target-name">探索中...</span>
         </div>
-        <div id="distance-display" style="font-size: 18px; color: cyan;">GPS取得中...</div>
+        <div id="distance-display">GPS取得中...</div>
     </div>
 
     <div id="guide-ui"></div>
@@ -89,7 +96,7 @@
             { lat: 35.70178630849327, lon: 139.82401544884175, color: 'red', name: '赤色' },
             { lat: 35.701758175931246, lon: 139.8236600716402, color: 'yellow', name: '黄色' },
             { lat: 35.70174146142711, lon: 139.82337052797118, color: 'blue', name: '青色' },
-            { lat: 35.701554486699166, lon: 139.82338933294176, color: 'hotpink', name: 'ピンク' }, // pinkは薄いのでhotpinkに
+            { lat: 35.701554486699166, lon: 139.82338933294176, color: 'hotpink', name: 'ピンク' },
             { lat: 35.70154550306454, lon: 139.82362449646504, color: '#8B4513', name: '茶色' }
         ];
 
@@ -101,18 +108,17 @@
             const displayIndicator = document.getElementById('target-indicator');
             const guideDiv = document.getElementById('guide-ui');
 
-            // 箱（エンティティ）を格納する配列
             let boxes = [];
 
-            // 1. リストの座標に箱を生成して配置
+            // 箱の生成
             targetData.forEach((data) => {
                 const box = document.createElement('a-box');
-                box.setAttribute('scale', '2 2 2'); // 2mサイズで見やすく
+                // 見つけやすいように少し大きめ(2m)
+                box.setAttribute('scale', '2 2 2'); 
                 box.setAttribute('material', `color: ${data.color}; opacity: 0.9;`);
                 box.setAttribute('gps-entity-place', `latitude: ${data.lat}; longitude: ${data.lon};`);
-                box.setAttribute('look-at', '[gps-camera]'); // 常にこちらを向く
+                box.setAttribute('look-at', '[gps-camera]'); 
                 
-                // 独自プロパティとしてデータを保持させておく
                 box.dataset.name = data.name;
                 box.dataset.color = data.color;
 
@@ -120,7 +126,7 @@
                 boxes.push(box);
             });
 
-            // 2. 常時監視ループ（0.2秒ごとに実行）
+            // 常時監視ループ（0.1秒ごとに高速更新）
             setInterval(() => {
                 if (!camera) return;
 
@@ -129,11 +135,8 @@
 
                 const cameraPos = camera.object3D.position;
 
-                // 全部の箱との距離を計算して、一番近いものを探す
                 boxes.forEach((box) => {
                     const boxPos = box.object3D.position;
-                    
-                    // A-Frame上の3D距離を計算 (GPS座標変換後の位置)
                     const distance = cameraPos.distanceTo(boxPos);
 
                     if (distance < minDistance) {
@@ -142,33 +145,31 @@
                     }
                 });
 
-                // 一番近い箱が見つかったら情報を更新
                 if (closestBox) {
-                    const distInt = Math.round(minDistance);
+                    // ★ここを修正：小数点以下4桁まで表示
+                    const distDetail = minDistance.toFixed(4); 
                     
-                    // 画面表示更新
                     displayName.textContent = closestBox.dataset.name;
                     displayName.style.color = closestBox.dataset.color === 'yellow' ? '#ffff00' : 'white';
                     displayIndicator.style.backgroundColor = closestBox.dataset.color;
                     
-                    if (distInt < 5) {
-                        displayDist.innerHTML = `<span style="color:red; font-size:24px;">★ここです！</span> (${distInt}m)`;
+                    // 距離表示の更新
+                    if (minDistance < 5) {
+                        displayDist.innerHTML = `<span style="color:red;">★到着！</span> ${distDetail}m`;
                     } else {
-                        displayDist.innerHTML = `あと ${distInt}m`;
+                        displayDist.innerHTML = `あと ${distDetail}m`;
                     }
 
-                    // 矢印ナビゲーションの計算
-                    // 選ばれた「一番近い箱」に対して方向を計算する
+                    // 矢印ナビ
                     const targetPos = closestBox.object3D.position.clone();
                     camera.object3D.worldToLocal(targetPos);
 
                     let msg = "";
-                    // 距離がある程度離れていて(2m以上)、視界に入っていない場合に矢印を出す
-                    if (targetPos.z < 0 && Math.abs(targetPos.x) < 3 && distInt < 100) {
-                        msg = ""; // 目の前にある
+                    if (targetPos.z < 0 && Math.abs(targetPos.x) < 3 && minDistance < 100) {
+                        msg = ""; 
                     } else {
                         if (targetPos.z > 0) {
-                            msg = "<div class='arrow'>⬇ 後ろ！</div>";
+                            msg = "<div class='arrow'>⬇ 後ろ</div>";
                         } else if (targetPos.x > 0) {
                             msg = "<div class='arrow'>➡ 右</div>";
                         } else {
@@ -178,7 +179,7 @@
                     guideDiv.innerHTML = msg;
                 }
 
-            }, 200);
+            }, 100); // 更新頻度を0.1秒に上げました
         });
     </script>
 </body>
