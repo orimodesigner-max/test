@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>AR Japanese Text</title>
+    <title>AR Rally Final</title>
 
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
@@ -13,36 +13,55 @@
     <style>
         body { margin: 0; overflow: hidden; font-family: sans-serif; }
 
-        /* 左上のリスト表示 */
+        /* ▼▼▼ 左上のリスト表示 ▼▼▼ */
         #target-list {
             position: fixed;
             top: 10px;
             left: 10px;
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(0, 0, 0, 0.7);
             padding: 10px;
             border-radius: 8px;
             color: white;
             z-index: 10000;
-            font-size: 14px;
-            max-width: 150px;
+            font-size: 12px; /* 項目が多いので少し小さめに */
+            max-width: 160px;
+            max-height: 40vh; /* 縦長になりすぎないように */
+            overflow-y: auto; /* スクロール可能に */
         }
-        .list-item { margin-bottom: 4px; display: flex; align-items: center; }
-        .color-dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid white; }
-        .check-mark { margin-left: auto; color: #00ff00; font-weight: bold; padding-left: 10px; }
+        .list-item {
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 2px;
+        }
+        .color-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+            flex-shrink: 0;
+        }
+        .check-mark {
+            margin-left: auto;
+            color: #00ff00;
+            font-weight: bold;
+            font-size: 14px;
+        }
 
-        /* 上部パネル */
+        /* ▼▼▼ 上部ナビゲーションパネル ▼▼▼ */
         #info-panel {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
-            padding-top: 50px; 
+            padding-top: 20px; 
             background: linear-gradient(rgba(0,0,0,0.8), transparent);
             color: white;
-            padding-bottom: 10px;
+            padding-bottom: 30px;
             z-index: 9999;
             text-align: center;
-            text-shadow: 1px 1px 2px black;
+            text-shadow: 2px 2px 4px black;
             pointer-events: none;
         }
         
@@ -57,10 +76,20 @@
             background-color: gray;
         }
 
-        #distance-display { font-size: 26px; color: cyan; font-family: monospace; font-weight: bold; margin-top: 5px; }
-        #target-name { font-size: 22px; font-weight: bold; }
+        #distance-display {
+            font-size: 28px; 
+            color: cyan; 
+            font-family: monospace; 
+            font-weight: bold;
+            margin-top: 5px;
+        }
 
-        /* 矢印ナビ */
+        #target-name {
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        /* ▼▼▼ 矢印ナビ ▼▼▼ */
         #guide-ui {
             position: fixed;
             top: 50%;
@@ -86,7 +115,7 @@
     <div id="target-list">Loading...</div>
 
     <div id="info-panel">
-        <div style="font-size: 14px; opacity: 0.8;">現在のターゲット</div>
+        <div style="font-size: 12px; opacity: 0.8;">一番近いターゲット</div>
         <div>
             <span id="target-indicator"></span>
             <span id="target-name">探索中...</span>
@@ -101,45 +130,55 @@
     </a-scene>
 
     <script>
-        // ★ 設定コーナー
-        const VISIBLE_DISTANCE = 50; 
-        const HIDE_ARROW_DISTANCE = 10;
-        const ARRIVAL_DISTANCE = 5;
+        // ==========================================
+        // ★ 設定コーナー（現地で調整可能）
+        // ==========================================
+        
+        const VISIBLE_DISTANCE = 50;  // この距離(m)以内で箱と文字が出現
+        const HIDE_ARROW_DISTANCE = 10; // この距離(m)以内で矢印が消える
+        const ARRIVAL_DISTANCE = 5;   // この距離(m)以内で「到着（チェック）」
 
-        // データリスト (labelプロパティを追加しました)
+        // ==========================================
+        // ★ 本番座標データ (9箇所)
+        // ==========================================
         const targetData = [
-            { id: 0, lat: 35.70178630849327, lon: 139.82401544884175, color: 'red', name: '赤色', label: '赤の宝箱', visited: false },
-            { id: 1, lat: 35.701758175931246, lon: 139.8236600716402, color: 'yellow', name: '黄色', label: '黄色の基地', visited: false },
-            { id: 2, lat: 35.70174146142711, lon: 139.82337052797118, color: 'blue', name: '青色', label: '青の補給所', visited: false },
-            { id: 3, lat: 35.701554486699166, lon: 139.82338933294176, color: 'hotpink', name: 'ピンク', label: '桃色の秘密', visited: false },
-            { id: 4, lat: 35.70154550306454, lon: 139.82362449646504, color: '#8B4513', name: '茶色', label: '茶色のゴール', visited: false }
+            { id: 0, lat: 35.690617733224585, lon: 140.020068025858, color: '#FF0000', name: 'Start', label: '① スタート地点', visited: false },
+            { id: 1, lat: 35.690187875511626, lon: 140.02055491951614, color: '#FF7F00', name: 'CheckPoint 1', label: '② 第一ポイント', visited: false },
+            { id: 2, lat: 35.68973978570581, lon: 140.02043153582534, color: '#FFFF00', name: 'CheckPoint 2', label: '③ 第二ポイント', visited: false },
+            { id: 3, lat: 35.689520801631105, lon: 140.02126335680853, color: '#00FF00', name: 'CheckPoint 3', label: '④ 第三ポイント', visited: false },
+            { id: 4, lat: 35.68915200985924, lon: 140.0213174090956, color: '#00FFFF', name: 'Rest Area', label: '⑤ 休憩スポット', visited: false },
+            { id: 5, lat: 35.688809269585626, lon: 140.0212346768373, color: '#0000FF', name: 'CheckPoint 4', label: '⑥ 第四ポイント', visited: false },
+            { id: 6, lat: 35.68894367914206, lon: 140.0207853824227, color: '#8A2BE2', name: 'CheckPoint 5', label: '⑦ 第五ポイント', visited: false },
+            { id: 7, lat: 35.689070718384734, lon: 140.0202839278186, color: '#FF00FF', name: 'View Point', label: '⑧ 展望エリア', visited: false },
+            { id: 8, lat: 35.68951206735917, lon: 140.02169445178453, color: '#FFD700', name: 'GOAL!', label: '⑨ ゴール！', visited: false }
         ];
 
-        // ■ 日本語テキストの画像を生成する魔法の関数
+        // テクスチャ生成（文字画像作成）
         function createTextTexture(text, color) {
             const canvas = document.createElement('canvas');
             canvas.width = 512; 
-            canvas.height = 128; // 横長の看板サイズ
+            canvas.height = 128; 
             const ctx = canvas.getContext('2d');
 
-            // 背景（半透明の黒）
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            // 背景
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // 枠線
+            ctx.lineWidth = 10;
+            ctx.strokeStyle = color;
+            ctx.strokeRect(0, 0, canvas.width, canvas.height);
 
             // 文字
             ctx.fillStyle = 'white';
-            ctx.font = 'bold 60px sans-serif';
+            ctx.font = 'bold 50px sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            // 枠線をつけて見やすく
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 4;
-            ctx.strokeText(text, canvas.width / 2, canvas.height / 2);
             ctx.fillText(text, canvas.width / 2, canvas.height / 2);
 
-            return canvas.toDataURL(); // 画像データ(Base64)として返す
+            return canvas.toDataURL();
         }
 
+        // リスト描画
         function renderTargetList() {
             const listContainer = document.getElementById('target-list');
             listContainer.innerHTML = ''; 
@@ -147,10 +186,10 @@
                 const item = document.createElement('div');
                 item.className = 'list-item';
                 const checkMark = data.visited ? '<span class="check-mark">✅</span>' : '';
-                const opacity = data.visited ? '0.5' : '1.0';
+                const opacity = data.visited ? '0.4' : '1.0'; // 訪問済みは薄く
                 item.innerHTML = `
                     <div class="color-dot" style="background-color: ${data.color}; opacity: ${opacity};"></div>
-                    <span style="opacity: ${opacity};">${data.name}</span>
+                    <span style="opacity: ${opacity}; color: white;">${data.label}</span>
                     ${checkMark}
                 `;
                 listContainer.appendChild(item);
@@ -165,44 +204,42 @@
             const displayIndicator = document.getElementById('target-indicator');
             const guideDiv = document.getElementById('guide-ui');
 
-            let entities = []; // オブジェクト管理用配列
+            let entities = []; 
 
             renderTargetList();
 
-            // 3Dオブジェクト生成
+            // オブジェクト生成ループ
             targetData.forEach((data, index) => {
-                // 1. 親エンティティ（場所を管理）
+                // コンテナ（場所）
                 const container = document.createElement('a-entity');
                 container.setAttribute('gps-entity-place', `latitude: ${data.lat}; longitude: ${data.lon};`);
-                // 初期は見えないように
-                container.setAttribute('visible', 'false');
+                container.setAttribute('visible', 'false'); // 初期は隠す
 
-                // 2. 箱（見た目）
+                // 箱（見た目）
                 const box = document.createElement('a-box');
                 box.setAttribute('scale', '2 2 2');
-                box.setAttribute('position', '0 1 0'); // 地面から少し浮かせる
-                box.setAttribute('material', `color: ${data.color}; opacity: 0.9;`);
-
-                // 3. 日本語テキスト看板（箱の上に配置）
-                const textPlane = document.createElement('a-plane');
-                textPlane.setAttribute('position', '0 4 0'); // 箱の3m上に表示
-                textPlane.setAttribute('scale', '5 1.25 1'); // 横幅5mの看板
-                textPlane.setAttribute('material', 'transparent: true; opacity: 1;');
-                textPlane.setAttribute('look-at', '[gps-camera]'); // 常にカメラを見る
+                box.setAttribute('position', '0 1 0');
+                box.setAttribute('material', `color: ${data.color}; opacity: 0.8;`);
                 
-                // 画像テクスチャを生成して貼り付け
-                const textureUrl = createTextTexture(data.label, data.color);
-                textPlane.setAttribute('src', textureUrl);
+                // アニメーション（回転させて目立たせる）
+                box.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 5000; easing: linear;');
 
-                // 親に子を追加
+                // 看板（日本語テキスト）
+                const textPlane = document.createElement('a-plane');
+                textPlane.setAttribute('position', '0 3.5 0'); // 箱の上に配置
+                textPlane.setAttribute('scale', '5 1.25 1');
+                textPlane.setAttribute('material', 'transparent: true; opacity: 1;');
+                textPlane.setAttribute('look-at', '[gps-camera]'); 
+                textPlane.setAttribute('src', createTextTexture(data.label, data.color));
+
                 container.appendChild(box);
                 container.appendChild(textPlane);
                 scene.appendChild(container);
 
-                // 管理用配列に保存
                 entities.push({ container: container, data: data });
             });
 
+            // メインループ
             setInterval(() => {
                 if (!camera) return;
 
@@ -210,10 +247,9 @@
                 let closestItem = null;
                 const cameraPos = camera.object3D.position;
 
-                // 距離計算ループ
+                // 一番近いものを計算
                 entities.forEach((item) => {
                     const distance = cameraPos.distanceTo(item.container.object3D.position);
-                    
                     if (distance < minDistance) {
                         minDistance = distance;
                         closestItem = item;
@@ -224,11 +260,12 @@
                     const distDetail = minDistance.toFixed(4);
                     const currentData = closestItem.data;
 
-                    displayName.textContent = currentData.name;
-                    displayName.style.color = currentData.color === 'yellow' ? '#ffff00' : 'white';
+                    // 情報パネル更新
+                    displayName.textContent = currentData.label; // 日本語ラベルを表示
+                    displayName.style.color = currentData.color === '#FFFF00' ? '#ffff00' : 'white';
                     displayIndicator.style.backgroundColor = currentData.color;
 
-                    // 距離による表示/非表示（エンティティごと切り替え）
+                    // 距離による表示制御
                     if (minDistance > VISIBLE_DISTANCE) {
                         closestItem.container.setAttribute('visible', 'false');
                     } else {
@@ -237,10 +274,10 @@
 
                     // 到着判定
                     if (minDistance < ARRIVAL_DISTANCE) {
-                        displayDist.innerHTML = `<span style="color:red;">★到着！</span> ${distDetail}m`;
+                        displayDist.innerHTML = `<span style="color:red; text-shadow:0 0 5px white;">★到着！</span>`;
                         if (!currentData.visited) {
                             currentData.visited = true;
-                            renderTargetList();
+                            renderTargetList(); // リスト更新
                         }
                     } else {
                         displayDist.innerHTML = `あと ${distDetail}m`;
@@ -251,6 +288,7 @@
                     camera.object3D.worldToLocal(targetPos);
                     let msg = "";
 
+                    // 近すぎる、または訪問済みなら矢印を出さない
                     if ((minDistance < HIDE_ARROW_DISTANCE && targetPos.z < 0 && Math.abs(targetPos.x) < 2) || currentData.visited) {
                         msg = ""; 
                     } else {
