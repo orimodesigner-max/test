@@ -2,65 +2,95 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <title>Location-based AR Debug</title>
+    <title>GPS Sensor Check</title>
     <script src="https://aframe.io/releases/1.0.4/aframe.min.js"></script>
-    <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
     <style>
-        /* 距離を表示するデバッグ窓のデザイン */
-        #debug {
+        #debug-console {
             position: fixed;
-            z-index: 10000;
-            background-color: rgba(0, 0, 0, 0.8); /* 背景を黒く */
-            color: yellow; /* 文字を黄色く */
-            font-size: 24px; /* 文字を大きく */
-            font-weight: bold;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            color: lime; /* ハッカーっぽい緑色 */
+            font-family: monospace;
+            font-size: 16px;
             padding: 20px;
-            top: 10px;
-            left: 10px;
-            border: 2px solid white;
-            display: block;
+            z-index: 99999;
+            pointer-events: none; /* 下の操作を邪魔しない */
+            overflow-y: scroll;
         }
     </style>
 </head>
-
 <body style="margin: 0; overflow: hidden;">
-    <div id="debug">GPS取得中...</div>
+    <div id="debug-console">
+        === GPS Sensor Check ===<br>
+        初期化中...<br>
+    </div>
 
     <a-scene
         vr-mode-ui="enabled: false"
         embedded
         arjs="sourceType: webcam; debugUIEnabled: false;"
     >
-        <a-box
-            id="target-box"
-            material="color: red"
-            gps-entity-place="latitude: 35.701820413676195; longitude: 139.8251889595972;"
-            scale="30 30 30"
-            look-at="[gps-camera]"
-        ></a-box>
-
-        <a-camera gps-camera="minDistance: 0; maxDistance: 1000; gpsMinDistance: 5;" rotation-reader></a-camera>
+        <a-camera id="camera" gps-camera rotation-reader></a-camera>
     </a-scene>
 
     <script>
-        window.addEventListener('load', () => {
-            const debugDiv = document.getElementById('debug');
-            const target = document.getElementById('target-box');
+        const consoleDiv = document.getElementById('debug-console');
+        function log(text) {
+            consoleDiv.innerHTML += text + "<br>";
+            consoleDiv.scrollTop = consoleDiv.scrollHeight; // 自動スクロール
+        }
 
-            // 距離が更新されたら画面に表示する処理
-            target.addEventListener('gps-entity-place-update-position', (event) => {
-                const distance = Math.round(event.detail.distance);
-                debugDiv.textContent = `あと ${distance}m`;
-                
-                // 距離に応じて色を変える演出（近づいたら青になる）
-                if(distance < 50) {
-                    target.setAttribute('material', 'color: blue');
-                } else {
-                    target.setAttribute('material', 'color: red');
-                }
+        window.addEventListener('load', () => {
+            log("ページ読み込み完了");
+            
+            // GPS取得APIが使えるかチェック
+            if ("geolocation" in navigator) {
+                log("Geolocation API: OK (機能あり)");
+            } else {
+                log("Geolocation API: NG (このブラウザは非対応)");
+                return;
+            }
+
+            const camera = document.getElementById('camera');
+
+            // 1. AR.jsのイベント経由でGPSを取得してみる
+            camera.addEventListener('gps-camera-update-position', (e) => {
+                log(`[AR.js] 座標受信成功!<br>緯度: ${e.detail.position.latitude.toFixed(5)}<br>経度: ${e.detail.position.longitude.toFixed(5)}`);
+                // 成功したら画面の色を変えるなど視覚的にわかるようにしてもいい
+                consoleDiv.style.color = "cyan";
             });
+
+            // 2. ブラウザ標準の機能でGPSを直接取得してみる（AR.jsがダメな場合の保険）
+            navigator.geolocation.watchPosition(
+                (position) => {
+                    log(`[Native] 生GPS受信中...<br>精度: 半径${Math.round(position.coords.accuracy)}m`);
+                },
+                (error) => {
+                    // ここが一番重要：エラーの原因を表示
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            log("<span style='color:red;'>エラー: 位置情報の利用が拒否されました。<br>設定で許可してください。</span>");
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            log("<span style='color:red;'>エラー: 位置情報が取得できません（電波状況など）。</span>");
+                            break;
+                        case error.TIMEOUT:
+                            log("<span style='color:red;'>エラー: タイムアウトしました。</span>");
+                            break;
+                        default:
+                            log(`<span style='color:red;'>不明なエラー: ${error.message}</span>`);
+                    }
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 20000,
+                    maximumAge: 0
+                }
+            );
         });
     </script>
 </body>
