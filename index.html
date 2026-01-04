@@ -3,36 +3,65 @@
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <title>Location-based AR.js demo</title>
+    <title>Location-based AR Debug</title>
     <script src="https://aframe.io/releases/1.0.4/aframe.min.js"></script>
     <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+    <style>
+        /* 距離を表示するデバッグ窓のデザイン */
+        #debug {
+            position: fixed;
+            z-index: 10000;
+            background-color: rgba(0, 0, 0, 0.8); /* 背景を黒く */
+            color: yellow; /* 文字を黄色く */
+            font-size: 24px; /* 文字を大きく */
+            font-weight: bold;
+            padding: 20px;
+            top: 10px;
+            left: 10px;
+            border: 2px solid white;
+            display: block;
+        }
+    </style>
 </head>
 
 <body style="margin: 0; overflow: hidden;">
-    <div style="position: fixed; top: 0; left: 0; background: rgba(0, 0, 0, 0.8); color: white; padding: 10px; z-index: 9999; font-size: 20px; font-weight: bold;">
-        Ver: 2.0 赤い箱大量モード
-    </div>
+    <div id="debug">GPS取得中...</div>
 
     <a-scene
         vr-mode-ui="enabled: false"
         embedded
         arjs="sourceType: webcam; debugUIEnabled: false;"
     >
-        <a-box material="color: red" scale="30 30 30" gps-entity-place="latitude: 35.701820413676195; longitude: 139.8251889595972;"></a-box>
-        <a-box material="color: red" scale="30 30 30" gps-entity-place="latitude: 35.7017528612219; longitude: 139.82517188359017;"></a-box>
-        <a-box material="color: red" scale="30 30 30" gps-entity-place="latitude: 35.70185427704282; longitude: 139.82521997890166;"></a-box>
-        <a-box material="color: red" scale="30 30 30" gps-entity-place="latitude: 35.701922316160896; longitude: 139.82525706149144;"></a-box>
-        <a-box material="color: red" scale="30 30 30" gps-entity-place="latitude: 35.70184775628935; longitude: 139.82555233742298;"></a-box>
-        <a-box material="color: red" scale="30 30 30" gps-entity-place="latitude: 35.70167024047349; longitude: 139.8255789069263;"></a-box>
-        <a-box material="color: red" scale="30 30 30" gps-entity-place="latitude: 35.7018082449683; longitude: 139.82501176486375;"></a-box>
-        <a-box material="color: red" scale="30 30 30" gps-entity-place="latitude: 35.70181178286458; longitude: 139.82454397295794;"></a-box>
-        <a-box material="color: red" scale="30 30 30" gps-entity-place="latitude: 35.7017884376202; longitude: 139.82426967703137;"></a-box>
-        <a-box material="color: red" scale="30 30 30" gps-entity-place="latitude: 35.70177309324932; longitude: 139.82400533076586;"></a-box>
-        <a-box material="color: red" scale="30 30 30" gps-entity-place="latitude: 35.70161442852892; longitude: 139.82519357669665;"></a-box>
-        <a-box material="color: red" scale="30 30 30" gps-entity-place="latitude: 35.70164477355623; longitude: 139.8252498567211;"></a-box>
+        <a-box
+            id="target-box"
+            material="color: red"
+            gps-entity-place="latitude: 35.701820413676195; longitude: 139.8251889595972;"
+            scale="30 30 30"
+            look-at="[gps-camera]"
+        ></a-box>
 
-        <a-camera gps-camera rotation-reader></a-camera>
+        <a-camera gps-camera="minDistance: 0; maxDistance: 1000; gpsMinDistance: 5;" rotation-reader></a-camera>
     </a-scene>
+
+    <script>
+        window.addEventListener('load', () => {
+            const debugDiv = document.getElementById('debug');
+            const target = document.getElementById('target-box');
+
+            // 距離が更新されたら画面に表示する処理
+            target.addEventListener('gps-entity-place-update-position', (event) => {
+                const distance = Math.round(event.detail.distance);
+                debugDiv.textContent = `あと ${distance}m`;
+                
+                // 距離に応じて色を変える演出（近づいたら青になる）
+                if(distance < 50) {
+                    target.setAttribute('material', 'color: blue');
+                } else {
+                    target.setAttribute('material', 'color: red');
+                }
+            });
+        });
+    </script>
 </body>
 </html>
